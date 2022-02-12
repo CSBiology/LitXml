@@ -203,7 +203,7 @@ module ReleaseTasks =
     }
 
     
-    let publishNuget = BuildTask.create "PublishNuget" [clean; build; copyBinaries; runTests; pack] {
+    let publishNuget = BuildTask.create "PublishNuget" [clean; build; copyBinaries; pack] {
         let targets = (!! (sprintf "%s/*.*pkg" pkgDir ))
         for target in targets do printfn "%A" target
         let msg = sprintf "release package with version %s?" stableVersionTag
@@ -216,7 +216,7 @@ module ReleaseTasks =
         else failwith "aborted"
     }
 
-    let publishNugetPrerelease = BuildTask.create "PublishNugetPrerelease" [clean; build; copyBinaries; runTests; packPrerelease] {
+    let publishNugetPrerelease = BuildTask.create "PublishNugetPrerelease" [clean; build; copyBinaries; packPrerelease] {
         let targets = (!! (sprintf "%s/*.*pkg" pkgDir ))
         for target in targets do printfn "%A" target
         let msg = sprintf "release package with version %s?" prereleaseTag 

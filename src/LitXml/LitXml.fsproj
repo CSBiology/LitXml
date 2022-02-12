@@ -2,10 +2,18 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+	<description>Small FSharp based DSL for writing literal xml</description>
+	<Authors>HLWeil,CSBiology</Authors>
+	<PackageIconUrl>https://fslab.org/docs-template/img/logo.png</PackageIconUrl>
+	<PackageTags>F# FSharp xml dsl</PackageTags>
+	<RepositoryUrl>https://github.com/CSBiology/LitXml</RepositoryUrl>
+	<RepositoryType>git</RepositoryType>
+	<PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Library.fs" />
+    <Compile Include="ElementBuilder.fs" />
+    <Compile Include="DSL.fs" />
   </ItemGroup>
 
 </Project>
