@@ -25,7 +25,21 @@ type ElementBuilder(name: string) =
 
     member inline _.Yield(n: #Element) = n
 
-    member inline this.Yield(b: ElementBuilder) =
+    member inline _.YieldFrom(ns: seq<#Element>) = 
+        Element(fun tb ->
+            Seq.iter (fun (n: #Element) -> n.Invoke(tb)) ns
+        )
+
+    member inline _.YieldFrom(bs: seq<ElementBuilder>) = 
+        Element(fun tb ->
+            bs
+            |> Seq.iter (fun b ->
+                tb.WriteStartElement(b.Name)
+                tb.WriteEndElement()
+            )           
+        )
+
+    member inline _.Yield(b: ElementBuilder) =
         Element(fun tb ->
             tb.WriteStartElement(b.Name)
             tb.WriteEndElement()
@@ -45,6 +59,11 @@ type ElementBuilder(name: string) =
         )
 
     member inline _.Delay(n: unit -> Element) = n()
+
+    member inline _.For(ns: 'T seq, ex: 'T -> Element) = 
+        Element(fun tb ->
+            Seq.iter (fun n -> (ex n).Invoke(tb)) ns
+        )
 
     static member WriteTo(stream : System.IO.MemoryStream, element : Element) = 
         let writer = XmlWriter.Create(stream)
