@@ -15,6 +15,10 @@ type ElementBuilder(name: string) =
 
     member _.Name = name
 
+    member this.SignMessages (messages : Message list) : Message list =
+        messages
+        |> List.map (sprintf "In Element \"%s\": %s" this.Name)
+
     member inline _.Yield(n: 'a when 'a :> System.IEquatable<'a>) = 
         ok (fun tb ->
             tb.WriteString(string n)
@@ -68,9 +72,9 @@ type ElementBuilder(name: string) =
                 tb.WriteStartElement(this.Name)
                 f tb
                 tb.WriteEndElement()
-            ),messages)
-        | MissingOptional messages -> MissingOptional messages 
-        | MissingRequired messages -> MissingRequired messages 
+            ),this.SignMessages messages)
+        | MissingOptional messages -> MissingOptional (this.SignMessages messages)
+        | MissingRequired messages -> MissingRequired (this.SignMessages messages)
 
     member this.Combine(wx1: XmlPart, wx2: XmlPart) : XmlPart=
         match wx1,wx2 with
