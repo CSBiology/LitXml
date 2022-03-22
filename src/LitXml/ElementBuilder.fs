@@ -2,36 +2,47 @@
 
 open System.Xml
 
-type Element(f : XmlWriter -> unit) =
+open Microsoft.FSharp.Quotations
+open Expression
 
-    member this.Invoke(xml : XmlWriter) = f xml
-
-type Value(f) =
-
-    inherit Element(f)
-
-type Attr(f) =
-
-    inherit Element(f)
-
-// https://docs.microsoft.com/en-us/dotnet/api/system.xml.xmlwriter?view=net-6.0
 type ElementBuilder(name: string) =
 
-    static member Empty = Element(fun _sb -> ())
+    static member Empty = ok (fun _sb -> ())
 
-    member inline this.Zero() = Element(fun _sb -> ())
+    // -- Computation Expression methods --> 
+
+    member inline this.Zero() = ok (fun _sb -> ())
 
     member _.Name = name
 
-    member inline _.Yield(n: #Element) = n
-
-    member inline _.YieldFrom(ns: seq<#Element>) = 
-        Element(fun tb ->
-            Seq.iter (fun (n: #Element) -> n.Invoke(tb)) ns
+    member inline _.Yield(n: 'a when 'a :> System.IEquatable<'a>) = 
+        ok (fun tb ->
+            tb.WriteString(string n)
         )
 
-    member inline _.YieldFrom(bs: seq<ElementBuilder>) = 
-        Element(fun tb ->
+    member inline _.Yield(n: XmlPart) = n
+        
+    member inline _.Yield(b: ElementBuilder) =
+        ok (fun tb ->
+            tb.WriteStartElement(b.Name)
+            tb.WriteEndElement()
+        )
+
+    member inline _.Yield(b: Expr<XmlPart>) =
+        try 
+            eval<XmlPart> b                   
+        with
+        | err -> MissingRequired([err.Message])
+
+    member inline this.YieldFrom(ns: seq<XmlPart>) =   
+        ns
+        |> Seq.fold (fun state we ->
+            this.Combine(state,we)
+
+        ) ElementBuilder.Empty
+
+    member inline this.YieldFrom(bs: seq<ElementBuilder>) = 
+        ok (fun tb ->
             bs
             |> Seq.iter (fun b ->
                 tb.WriteStartElement(b.Name)
@@ -39,48 +50,81 @@ type ElementBuilder(name: string) =
             )           
         )
 
-    member inline _.Yield(b: ElementBuilder) =
-        Element(fun tb ->
-            tb.WriteStartElement(b.Name)
-            tb.WriteEndElement()
-        )
+    member inline this.For(vs : seq<'T>, f : 'T -> XmlPart) =
+        vs
+        |> Seq.map f
+        |> this.YieldFrom
 
-    member inline this.Run(children: #Element) : Element =
-        Element(fun tb ->
-            tb.WriteStartElement(this.Name)
-            children.Invoke(tb)
-            tb.WriteEndElement()
-        )
+    member inline this.For(vs : seq<'T>, f : 'T -> ElementBuilder) =
+        vs
+        |> Seq.map f
+        |> this.YieldFrom
 
-    member inline _.Combine(x1: #Element, x2: #Element) =
-        Element(fun sb -> 
-            x1.Invoke(sb)
-            x2.Invoke(sb)
-        )
 
+    member inline this.Run(children: XmlPart) =
+        match children with
+        | Ok (f,messages) ->
+            Ok ((fun tb ->
+                tb.WriteStartElement(this.Name)
+                f tb
+                tb.WriteEndElement()
+            ),messages)
+        | MissingOptional messages -> MissingOptional messages 
+        | MissingRequired messages -> MissingRequired messages 
+
+    member this.Combine(wx1: XmlPart, wx2: XmlPart) : XmlPart=
+        match wx1,wx2 with
+        // If both contain content, combine the content
+        | Ok (f1,messages1), Ok (f2,messages2) ->
+            Ok (fun tb ->
+                f1 tb
+                f2 tb
+            ,List.append messages1 messages2)
+
+        // If any of the two is missing and was required, return a missing required
+        | _, MissingRequired messages2 ->
+            MissingRequired (List.append wx1.Messages messages2)
+
+        | MissingRequired messages1, _ ->
+            MissingRequired (List.append messages1 wx2.Messages)
+
+        // If only one of the two is missing and was optional, take the content of the functioning one
+        | Ok (f1,messages1), MissingOptional messages2 ->
+            Ok (fun tb ->
+                f1 tb
+            ,List.append messages1 messages2)
+
+        | MissingOptional messages1, Ok (f2,messages2) ->
+            Ok (fun tb ->
+                f2 tb
+            ,List.append messages1 messages2)
+
+        // If both are missing and were optional, return a missing optional
+        | MissingOptional messages1, MissingOptional messages2 ->
+            MissingOptional (List.append messages1 messages2)
+        
     member inline _.Delay(n: unit -> Element) = n()
 
-    member inline _.For(ns: 'T seq, ex: 'T -> Element) = 
-        Element(fun tb ->
-            Seq.iter (fun n -> (ex n).Invoke(tb)) ns
-        )
 
-    static member WriteTo(stream : System.IO.MemoryStream, element : Element) = 
-        let writer = XmlWriter.Create(stream)
-        element.Invoke(writer) |> ignore
-        writer.Flush()
-        writer.Close()
+    // -- Writers --> 
 
-    static member WriteTo(path : string, element : Element) = 
-        let writer = XmlWriter.Create(path)
-        element.Invoke(writer) |> ignore
-        writer.Flush()
-        writer.Close()
+    static member writeToWriter (writer : XmlWriter) (element : Element) = 
+        element.WriteTo(writer)
 
-    static member WriteToString(element : Element) = 
-        let tb = System.Text.StringBuilder()
-        let writer = XmlWriter.Create(tb)
-        element.Invoke(writer) |> ignore
-        writer.Flush()
-        writer.Close()
-        tb.ToString()
+    static member writeToStream (stream : System.IO.MemoryStream) (element : Element) = 
+        element.WriteTo(stream)
+        
+    static member writeToStreamWith (settings : XmlWriterSettings) (stream : System.IO.MemoryStream) (element : Element) = 
+        element.WriteTo(stream, settings)
+
+    static member writeToPath (path : string) (element : Element) = 
+        element.WriteTo(path)
+
+    static member writeToPathWith (settings : XmlWriterSettings) (path : string) (element : Element) = 
+        element.WriteTo(path, settings)
+
+    static member writeToString (element : Element) =
+        element.WriteToString()
+
+    static member writeToStringWith (settings : XmlWriterSettings) (element : Element) =
+        element.WriteToString(settings)

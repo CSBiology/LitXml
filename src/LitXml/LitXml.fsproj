@@ -12,8 +12,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Expression.fs" />
+    <Compile Include="Element.fs" />
     <Compile Include="ElementBuilder.fs" />
     <Compile Include="DSL.fs" />
+    <Compile Include="Operators.fs" />
   </ItemGroup>
 
 </Project>
