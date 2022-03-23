@@ -19,9 +19,14 @@ type ElementBuilder(name: string) =
         messages
         |> List.map (sprintf "In Element \"%s\": %s" this.Name)
 
-    member inline _.Yield(n: 'a when 'a :> System.IEquatable<'a>) = 
+    member inline _.Yield(n: 'a when 'a :> System.IFormattable) = 
         ok (fun tb ->
             tb.WriteString(string n)
+        )
+
+    member inline _.Yield(s : string) = 
+        ok (fun tb ->
+            tb.WriteString(s)
         )
 
     member inline _.Yield(n: XmlPart) = n

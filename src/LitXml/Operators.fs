@@ -10,7 +10,7 @@ module Operators =
     /// Required value operator
     ///
     /// If expression does fail, returns a missing required value
-    let inline (!!) (s : Expr<'a> when 'a :> System.IEquatable<'a>) : Value =
+    let inline (!!) (s : Expr<'a>) : Value =
         try 
             let value = eval<'a> s
             let f = (fun (sb : XmlWriter) -> 
@@ -23,7 +23,7 @@ module Operators =
     /// Optional value operator
     ///
     /// If expression does fail, returns a missing optional value
-    let inline (!?) (s : Expr<'a> when 'a :> System.IEquatable<'a>) : Value =
+    let inline (!?) (s : Expr<'a>) : Value =
         try 
             let value = eval<'a> s
             let f = (fun (sb : XmlWriter) -> 
