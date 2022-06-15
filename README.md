@@ -3,6 +3,12 @@ Small FSharp based DSL for writing **lit**eral **xml**
 
 # Usage
 
+- [Basic example](#basic-example)
+- [Mixing literal and programmatic logic](#mixing-literal-and-programmatic-logic)
+- [Optional and required values](#optional-and-required-values)
+	- [Basics](#basics)
+	- [Small examples](#small-examples)
+	- [Nesting](#nesting)
 ## Basic example
 ```fsharp
 #r "nuget: LitXml"
@@ -79,4 +85,127 @@ let collectionTest =
 		<Number>10</Number>
 	</Numbers>
 </MyXml>
+```
+## Optional and required values
+
+### Basics
+
+In some cases, whether a `value` actually exists is not known when writing the code, but only when running it. For how to handle these values, basically two approaches exist: 
+
+- The value was `missing` and `required`
+    In this case, not only the value but everything else should be missing from the final xml
+
+- The value was `missing` and `optional`
+    In this case, only the value should be missing from the final xml
+
+For these cases the `!!` and `!?` operators were created. As input they receive an `Expr<'T>`. This `Expr<'T>` type can basically be used to `delay a computation`. This is important as we're interested in whether a value exists or not and we want to find that out in a controlled way, not crashing the program. Creating such a delayed expression can be done with the following syntax `<@ "expression" @>`. 
+
+So you could write the following code:
+
+```fsharp
+open Microsoft.FSharp.Quotations
+
+!! <@ (Some "value").Value @> // Will result in "Ok (value)"
+!! <@ (None        ).Value @> // Will result in "MissingRequired"
+
+!? <@ (Some "value").Value @> // Will result in "Ok (value)"
+!? <@ (None        ).Value @> // Will result in "MissingOptional"
+```
+
+### Small examples
+
+#### Optional value missing 
+We use the `!?` operator here, so each subelement here is optional. The second subelement should return no value.
+```fsharp
+elem "myxml" {
+        elem "ThisFieldWillWork" {
+            !? <@ "abc" @>
+        }
+        elem "ThisFieldWillNotWork" {
+            !? <@ None.Value @>
+        }
+        elem "ThisFieldWillWork" {
+            !? <@ "abc" @>
+        }
+    }
+```
+
+-> 
+```xml
+<?xml version="1.0" encoding="utf-16"?>
+<myxml>
+  <ThisFieldWillWork>abc</ThisFieldWillWork>
+  <ThisFieldWillWork>abc</ThisFieldWillWork>
+</myxml>
+```
+Note that the `optional` `ThisFieldWillNotWork` block is missing, but the other blocks are still there.
+
+
+#### Required value missing 
+```fsharp
+elem "myxml" {
+        elem "ThisFieldWillWork" {
+            !! <@ "abc" @>
+        }
+        elem "ThisFieldWillNotWork" {
+            !! <@ None.Value @>
+        }
+        elem "ThisFieldWillWork" {
+            !! <@ "abc" @>
+        }
+    }
+```
+-> 
+```xml
+```
+Note that the whole xml is missing, as a `required` block was missing.
+
+### Nesting
+
+`MissingRequired` and `MissingOptional` elements behave consistently on each layer. 
+- The layer above a `MissingOptional` will only become a `MissingOptional` itself, if there are no other non missing elements.
+- The layer above a `MissingRequired` will always become a `MissingRequired` itself. 
+
+
+
+```fsharp
+elem "myxml" {
+    elem "ThisFieldWillWork" {
+        !! <@ "abc" @>
+    }
+    elem "RequiredBelow" {
+        elem "ThisFieldWillNotWork" {
+            !! <@ None.Value @>
+        }
+    }
+}
+```
+-> 
+```xml
+```
+The `MissingRequired` "ThisFieldWillNotWork" lead to the "RequiredBelow" element being also `MissingRequired` so the whole xml get's lost
+
+#### Using opt
+
+But what if we want a subelement to be required for an element, but this element being optional for the element above?
+For this we use the `opt` keyword. Which transforms a `MissingRequired` to a `MissingOptional`:
+
+```fsharp
+elem "myxml" {
+        elem "ThisFieldWillWork" {
+            !! <@ "abc" @>
+        }
+        opt (elem "RequiredBelow" {
+            elem "ThisFieldWillNotWork" {
+                !! <@ None.Value @>
+            }
+        })
+    }
+```
+-> 
+```xml
+<?xml version="1.0" encoding="utf-16"?>
+<myxml>
+  <ThisFieldWillWork>abc</ThisFieldWillWork>
+</myxml>
 ```
